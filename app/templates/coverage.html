@@ -1,0 +1,112 @@
+{% extends 'base.html' %}{% block body %}
+{% if latest_run %}<div id="coverage-data" data-evidence="{{evidence.evidence_id}}" data-run="{{latest_run.run_id}}" hidden></div>{% endif %}
+<div class="grid">
+  <section class="panel">
+    <div class="receipt">
+      <div><div class="serial">{{evidence.evidence_id|upper}}</div><strong>共享证据覆盖裁决</strong></div>
+      <span class="serial">{% if evidence.metrics.reconciled %}已对平 · 可发布签证{% else %}未对平 · 禁止发布签证{% endif %}</span>
+    </div>
+    <div class="panel__body inputs">
+      <select id="dataset" aria-label="证据样例">
+        <option value="shared_evidence.csv">共享测量记录·混合批</option>
+        <option value="over_allocation.csv">超分异常批</option>
+      </select>
+      <button id="calculate" class="primary">重新裁决</button>
+      <input type="file" id="attachment" accept=".csv" aria-label="证据文件">
+      <button id="attach">导入证据</button>
+      <a class="btn" href="/api/coverage/{{evidence.evidence_id}}/raw">原始证据</a>
+      <button id="export-coverage">导出覆盖证据</button>
+      {% if batches|length>1 %}<select id="batch-select" aria-label="历史证据批次">
+        {% for b in batches %}<option value="{{b.evidence_id}}" {{'selected' if b.evidence_id==evidence.evidence_id else ''}}>{{b.evidence_id}} · {{'已对平' if b.reconciled else '未对平'}}</option>{% endfor %}
+      </select>{% endif %}
+      <span id="notice" role="status"></span>
+    </div>
+
+    <div class="panel__head"><h2>总测量记录与分用量（守恒）</h2><span>分用量之和 ≤ 总测量量</span></div>
+    <div class="table-scroll">
+      <table class="ledger">
+        <thead><tr><th>来源行</th><th>测量记录</th><th>清单项</th><th>单位</th><th>总测量量</th><th>已分用量</th><th>剩余量</th><th>结论</th></tr></thead>
+        <tbody>
+        {% for m in evidence.measurements %}
+          <tr data-difference="{{'true' if m.status=='超分' else 'false'}}">
+            <td>{{m.source_lines|join('/')}}</td><td>{{m.record_id}}</td><td>{{m.item}}</td><td>{{m.unit}}</td>
+            <td>{{m.total_qty}}</td><td>{{m.allocated_qty}}</td><td>{{m.remaining_qty}}</td><td>{{m.status}}</td>
+          </tr>
+        {% else %}<tr><td class="empty">无有效测量记录。</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="panel__head" style="margin-top:14px"><h2>分用量采信明细</h2><span>每条可回到原始记录</span></div>
+    <div class="table-scroll">
+      <table class="ledger">
+        <thead><tr><th>来源行</th><th>测量记录</th><th>清单项</th><th>周期</th><th>分用量</th><th>单位</th></tr></thead>
+        <tbody>
+        {% for a in evidence.allocations %}
+          <tr><td>{{a.source_lines|join('/')}}</td><td>{{a.record_id}}</td><td>{{a.item}}</td><td>{{a.period or '—'}}</td><td>{{a.qty}}</td><td>{{a.unit}}</td></tr>
+        {% else %}<tr><td class="empty">暂无采信分用量。</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="stack">
+    <section class="panel">
+      <div class="panel__head"><h2>工程项覆盖结论</h2><span>已覆盖 / 缺口</span></div>
+      <div class="panel__body">
+        {% for i in evidence.item_coverage %}
+        <div class="audit-line"><span>项 {{i.item}}（{{i.unit}}）· {{i.status}}</span><b>覆盖 {{i.covered_qty}} / 需求 {{i.demand_qty}} / 缺口 {{i.gap_qty}}</b></div>
+        {% else %}<div class="empty">无工程项覆盖。</div>{% endfor %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel__head"><h2>裁决指标</h2><span>{{evidence.metrics.measurement_records}} 条测量 / {{evidence.metrics.item_count}} 个项</span></div>
+      <div class="panel__body">
+        {% set metric_labels={'measurement_documents':'测量记录份数','measurement_records':'测量分项','image_evidence':'影像证据','declarations':'分用量申报','accepted_allocations':'采信分用量','rejected_allocations':'驳回分用量','quarantine_sources':'隔离来源行','over_allocated':'超分分项','unused_sources':'未使用来源','item_count':'工程项数','reconciled':'是否对平','input':'输入行','excluded':'排除行','blocking_reasons':'阻断原因'} %}
+        {% for key,value in evidence.metrics.items() %}
+        <div class="audit-line"><span>{{metric_labels.get(key,key)}}</span><b>{{value}}</b></div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel__head"><h2>未采信来源</h2><span>{{evidence.quarantine|length + evidence.unused_sources|length + evidence.unsupported_sources|length}}</span></div>
+      <div class="panel__body">
+        {% for q in evidence.quarantine %}
+        <div class="reason"><b>{{q.reason}} · {{q.detail}}</b><span>行 {{q.get('_sources',[])|join('/')}} / 记录 {{q.get('record_id','—')}}</span></div>
+        {% endfor %}
+        {% for u in evidence.unused_sources %}
+        <div class="reason"><b>UNUSED_SOURCE · 总测量记录未被任何工程项使用</b><span>行 {{u.source_lines|join('/')}} / {{u.record_id}} / {{u.total_qty}}{{u.unit}}</span></div>
+        {% endfor %}
+        {% for u in evidence.unsupported_sources %}
+        <div class="reason"><b>UNSUPPORTED · 影像/申报材料无用量，不构成覆盖</b><span>行 {{u.source_lines|join('/')}} / {{u.record_id}}（{{u.kind}}）</span></div>
+        {% endfor %}
+        {% if not evidence.quarantine and not evidence.unused_sources and not evidence.unsupported_sources %}
+        <div class="empty">无未采信来源。</div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel__head"><h2>正式签证发布</h2><span>仅对平批次可发布</span></div>
+      <div class="panel__body">
+        {% if latest_run %}
+        <div class="audit-line"><span>关联计量批次</span><b>{{latest_run.run_id}}</b></div>
+        <div class="inputs" style="margin:8px 0">
+          <button id="publish-cert" class="primary" {% if not evidence.metrics.reconciled %}disabled title="覆盖结论未对平，不能发布"{% endif %}>发布正式签证</button>
+        </div>
+        {% if active_cert %}
+        <div class="audit-line"><span>当前有效签证</span><b>v{{active_cert.version}} / {{active_cert.certificate_id}}</b></div>
+        {% for c in active_cert.covered_items %}<div class="audit-line"><span>已覆盖 项{{c.item}}（{{c.unit}}）</span><b>{{c.covered_qty}}</b></div>{% endfor %}
+        {% for g in active_cert.gaps %}<div class="reason"><b>未覆盖缺口</b><span>项{{g.item}} / {{g.gap_qty}}{{g.unit}}（不进入签证）</span></div>{% endfor %}
+        {% else %}<div class="empty">尚无有效签证。</div>{% endif %}
+        {% for e in cert_events %}<div class="reason"><b>{{e.event}}</b><span>{{e.created_at[:19]}} / {{e.detail}}</span></div>{% endfor %}
+        {% else %}
+        <div class="empty">请先在计量模块生成一个批次，再发布签证。</div>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

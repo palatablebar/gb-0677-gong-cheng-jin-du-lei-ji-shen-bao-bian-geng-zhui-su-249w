@@ -1,0 +1,9 @@
+row_type,record_id,item,period,qty,unit,kind,note
+measurement,M-101,钢筋,2026-11,100,t,,合测记录甲
+measurement,M-102,混凝土,2026-11,80,m³,,合测记录乙
+declaration,M-101,钢筋,2026-11,60,t,,第一次拆分
+declaration,M-101,钢筋,2026-11,55,t,,第二次拆分（合计115>100，超分）
+declaration,M-102,混凝土,2026-11,30,m³,,混凝土部分领用
+demand,D-11,钢筋,2026-11,100,t,,本期需求
+demand,D-12,混凝土,2026-11,80,m³,,本期需求
+image,IMG-101,,,,,影像,现场影像无用量

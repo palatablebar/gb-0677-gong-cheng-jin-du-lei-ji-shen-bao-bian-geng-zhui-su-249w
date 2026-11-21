@@ -13,6 +13,7 @@
 | M5 扣回核算 | 查看并运行扣回核算 | `/api/deductions` | `app/modules/m5_deductions/rules.py` | `tests/test_m5.py` |
 | M6 进度对账 | 查看并运行进度对账 | `/api/valuation` | `app/modules/m6_valuation/rules.py` | `tests/test_m6.py` |
 | M7 签证归档 | 查看并运行签证归档 | `/api/certificates` | `app/modules/m7_certificates/rules.py` | `tests/test_m7.py` |
+| M8 共享证据覆盖 | 裁决共享证据并发布签证 | `/api/coverage`、`/coverage` | `app/evidence/coverage.py`、`app/evidence/store.py` | `tests/test_evidence_rules.py`、`tests/test_evidence_store.py`、`tests/test_evidence_api.py` |
 
 ## 陷阱登记
 
@@ -30,6 +31,11 @@
 | TRAP-07 | 累计量空值 | 按零冲回 | 隔离缺失 | `app/values.py` | `tests/test_m2.py::test_real_null_not_zero` |
 | TRAP-10 | 分币舍入 | 浮点误差 | 分项量化后净额守恒 | `app/modules/m5_deductions/rules.py` | `tests/test_m5.py::test_fraction_rounds_to_cent` |
 | TRAP-23 | 变更生效边界 | 旧价覆盖 | 按周期选择已批版本 | `app/modules/m3_changes/rules.py` | `tests/test_m3.py::test_effective_boundary` |
+| TRAP-30 | 共享证据整份算给两边 | 覆盖虚增 | 按（测量记录，清单项）拆分，分用量之和≤总测量量，超分阻断签证 | `app/evidence/coverage.py` | `tests/test_evidence_rules.py::test_over_allocation_blocks_reconciliation` |
+| TRAP-31 | 影像等无用量来源 | 当作工程量采信 | 无用量强制校验，列入 unsupported，不构成覆盖 | `app/evidence/intake.py` | `tests/test_evidence_rules.py::test_image_evidence_is_unsupported_not_coverage` |
+| TRAP-32 | 发布中途失败 | 旧版丢失或出现双有效签证 | 单事务 superseded→active，失败整体回滚并留痕，部分唯一索引兜底 | `app/evidence/store.py` | `tests/test_evidence_store.py::test_failed_publish_keeps_old_version`、`test_in_transaction_failure_rolls_back` |
+| TRAP-33 | 同一证据重跑 | 重复累计覆盖 | 输入摘要派生批次ID，INSERT OR IGNORE 复用，发布同证据幂等 | `app/evidence/intake.py`、`app/evidence/store.py` | `tests/test_evidence_store.py::test_same_evidence_rerun_creates_no_new_batch` |
+| TRAP-34 | 原始证据改写/编码损坏 | 无法回溯 | 按检测编码原样独立存表，裁决结果与原文分离 | `app/evidence/service.py`、`app/evidence/store.py` | `tests/test_evidence_store.py::test_gb18030_raw_evidence_roundtrip` |
 
 ## 对账规则
 
@@ -37,4 +43,4 @@
 
 ## 已知不覆盖
 
-4MB以上文件需预先按业务键分批；不模拟生产支付与外部回调。人工复核只变更批次状态，不改写原始记录。
+4MB以上文件需预先按业务键分批；不模拟生产支付与外部回调。人工复核只变更批次状态，不改写原始记录。共享证据域不自动拆分用量：分用量以申报行形式提供，系统只做守恒裁决与采信，不替现场决定钢筋与混凝土各占多少；未对平结论一律不得进入正式签证。

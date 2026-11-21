@@ -20,10 +20,13 @@ docker compose exec -T app pytest -q
 - 5. 扣回核算：`/deductions`，`/api/deductions`。
 - 6. 进度对账：`/valuation`，`/api/valuation`。
 - 7. 签证归档：`/certificates`，`/api/certificates`。
+- 8. 共享证据覆盖：`/coverage`，`/api/coverage`。
 
 ## 核心规则
 
 累计申报必须减前期已审金额，变更按审批生效版本覆盖；负进度需关联冲回证据。
+
+共享证据（一份总测量记录同时涉及钢筋和混凝土）按（测量记录、清单项）拆分裁决：分用量之和不得超过该记录对该项的总测量量，超分、引用无效或无有效测量即判未对平。未对平结论不能发布正式签证；发布在单事务内将旧版置为 superseded、新版置为 active，失败整体回滚保留旧版。同一证据重跑复用同一批次、不新增覆盖；原始证据按原编码独立留存，不参与改写。影像等无用量来源不构成覆盖，与未使用测量记录、隔离行一并在工作台列为未采信来源。
 
 ## 演示
 
@@ -34,7 +37,7 @@ docker compose exec -T app pytest -q
 
 ## 输入与输出
 
-输入列见 `docs/DATA-DICTIONARY.md`。项目包含dirty.csv、clean.csv、legacy.csv，统一走实际导入路径。上传限制4MB，拒绝不带时区的时间。业务键按字符串保留，Decimal参与计算，空值不会当零。
+输入列见 `docs/DATA-DICTIONARY.md`。项目包含dirty.csv、clean.csv、legacy.csv（计量申报）与shared_evidence.csv、over_allocation.csv（共享证据，后者演示超分阻断），统一走实际导入路径。上传限制4MB，拒绝不带时区的时间。业务键按字符串保留，Decimal参与计算，空值不会当零。
 
 `POST /api/runs` 接收sample或csv；`GET /api/runs`返回历史批次；`POST /api/runs/<id>/review`需要version与decision；`GET /api/runs/<id>/archive`返回唯一证据导出。
 
